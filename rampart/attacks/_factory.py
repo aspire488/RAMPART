@@ -7,14 +7,17 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from rampart.attacks._adaptive_xpia import AdaptiveXPIAExecution
 from rampart.attacks._xpia import XPIAExecution
 from rampart.core.injection import InjectionHandle
+from rampart.core.types import Payload
 from rampart.drivers._utils import coerce_driver
 
 if TYPE_CHECKING:
     from rampart.core.evaluator import Evaluator
     from rampart.core.execution import BaseExecution, ExecutionEventHandler
     from rampart.core.prompt_driver import PromptDriver
+    from rampart.core.types import Surface
     from rampart.core.types import Request
 
 
@@ -95,5 +98,33 @@ class Attacks:
             driver=driver,
             evaluator=evaluator,
             max_turns=max_turns,
+            event_handlers=event_handlers,
+        )
+
+
+    @staticmethod
+    def xpia_adaptive(
+        *,
+        surface: Surface,
+        payload: Payload,
+        rewriter,
+        trigger: str | list[str] | Request | list[Request] | PromptDriver,
+        evaluator: Evaluator,
+        max_attempts: int = 5,
+        event_handlers: list[ExecutionEventHandler] | None = None,
+    ) -> BaseExecution:
+        """Create an iterative XPIA execution.
+
+        The trigger remains benign; adaptation is limited to the injected
+        payload. After a NOT_DETECTED result, the rewriter produces the next
+        payload and the same surface is re-injected.
+        """
+        return AdaptiveXPIAExecution(
+            surface=surface,
+            payload=payload,
+            rewriter=rewriter,
+            driver=coerce_driver(trigger),
+            evaluator=evaluator,
+            max_attempts=max_attempts,
             event_handlers=event_handlers,
         )
