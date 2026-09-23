@@ -8,6 +8,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Awaitable, Callable
 from contextlib import AsyncExitStack
+from typing import TYPE_CHECKING
 
 from rampart.attacks._xpia import XPIAExecution
 from rampart.core import (
@@ -20,6 +21,10 @@ from rampart.core import (
     Turn,
 )
 from rampart.core.execution import evaluate_turn_async
+
+if TYPE_CHECKING:
+    from rampart.core.evaluator import Evaluator
+    from rampart.core.execution import ExecutionEventHandler
 
 PayloadRewriter = Callable[[Payload, int, EvalResult], Payload | Awaitable[Payload]]
 
@@ -34,9 +39,9 @@ class AdaptiveXPIAExecution(XPIAExecution):
         payload: Payload,
         rewriter: PayloadRewriter,
         driver: PromptDriver,
-        evaluator,
+        evaluator: Evaluator,
         max_attempts: int = 5,
-        event_handlers=None,
+        event_handlers: list[ExecutionEventHandler] | None = None,
     ) -> None:
         if max_attempts < 1:
             raise ValueError("max_attempts must be at least 1")
