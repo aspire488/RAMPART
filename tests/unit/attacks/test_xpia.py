@@ -834,3 +834,90 @@ class TestXPIASafeSummary:
 
         assert len(result.turns) == 3
         assert result.summary.count("http_request") == 1
+
+
+class _MockSurface:
+    def __init__(self, handles: list[AsyncMock]) -> None:
+        self.handles = handles
+        self.payloads: list[Payload] = []
+
+    def inject(self, *, payload: Payload) -> AsyncMock:
+        self.payloads.append(payload)
+        return self.handles[len(self.payloads) - 1]
+
+
+class TestAdaptiveXPIA:
+    """Adaptive XPIA re-injects only after a non-detected round."""
+
+    async def test_reinjects_rewritten_payload_until_detection_async(self) -> None:
+        handles = [_mock_handle(payload_id="p-001"), _mock_handle(payload_id="p-002")]
+        surface = _MockSurface(handles)
+        evaluator = AsyncMock(spec=Evaluator)
+        evaluator.evaluate_async.side_effect = [
+            EvalResult(outcome=EvalOutcome.NOT_DETECTED),
+            EvalResult(outcome=EvalOutcome.DETECTED, evidence=["triggered"]),
+        ]
+        initial = Payload(content="initial")
+        rewritten = Payload(content="rewritten")
+        calls: list[int] = []
+
+        def rewriter(
+            payload: Payload,
+            attempt: int,
+            previous: EvalResult,
+        ) -> Payload:
+            calls.append(attempt)
+            assert payload is initial
+            assert previous.outcome is EvalOutcome.NOT_DETECTED
+            return rewritten
+
+        result = await Attacks.xpia_adaptive(
+            surface=surface,
+            payload=initial,
+            rewriter=rewriter,
+            trigger="Summarize Q3",
+            evaluator=evaluator,
+            max_attempts=3,
+        ).execute_async(adapter=_adapter(responses=[Response(text="ok"), Response(text="ok")]))
+
+        assert result.status is SafetyStatus.UNSAFE
+        assert result.strategy == "xpia_adaptive"
+        assert [payload.content for payload in surface.payloads] == [
+            "initial",
+            "rewritten",
+        ]
+        assert calls == [1]
+        assert [record.payload_id for record in result.injections] == [
+            "p-001",
+            "p-002",
+        ]
+
+    async def test_stops_without_rewrite_on_undetermined_async(self) -> None:
+        handle = _mock_handle()
+        surface = _MockSurface([handle])
+        evaluator = _mock_evaluator(
+            EvalOutcome.UNDETERMINED,
+            rationale="no observable evidence",
+        )
+        calls: list[int] = []
+
+        def rewriter(
+            payload: Payload,
+            attempt: int,
+            previous: EvalResult,
+        ) -> Payload:
+            calls.append(attempt)
+            return Payload(content="rewritten")
+
+        result = await Attacks.xpia_adaptive(
+            surface=surface,
+            payload=Payload(content="initial"),
+            rewriter=rewriter,
+            trigger="Summarize Q3",
+            evaluator=evaluator,
+            max_attempts=3,
+        ).execute_async(adapter=_adapter())
+
+        assert result.status is SafetyStatus.UNDETERMINED
+        assert len(surface.payloads) == 1
+        assert calls == []
