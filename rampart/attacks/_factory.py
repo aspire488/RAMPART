@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from rampart.attacks._adaptive_xpia import AdaptiveXPIAExecution
+from rampart.attacks._adaptive_xpia import AdaptiveXPIAExecution, PayloadRewriter
 from rampart.attacks._xpia import XPIAExecution
 from rampart.core.injection import InjectionHandle
 from rampart.core.types import Payload
@@ -107,7 +107,7 @@ class Attacks:
         *,
         surface: Surface,
         payload: Payload,
-        rewriter,
+        rewriter: PayloadRewriter,
         trigger: str | list[str] | Request | list[Request] | PromptDriver,
         evaluator: Evaluator,
         max_attempts: int = 5,
