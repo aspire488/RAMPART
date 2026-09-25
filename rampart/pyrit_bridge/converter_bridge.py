@@ -5,12 +5,9 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from rampart.core.types import Payload, PayloadFormat
-
-if TYPE_CHECKING:
-    from pyrit.prompt_converter import Converter
 
 
 class PyRITConverterBridge:
